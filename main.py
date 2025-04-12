@@ -139,6 +139,27 @@ class Agent:
 
             self.apply_force(steer)
 
+    def cohesion(self, agents, neighbor_dist=50):
+        center_mass = pygame.math.Vector2(0, 0)
+        total = 0
+
+        for other in agents:
+            if other == self:
+                continue
+            distance = self.position.distance_to(other.position)
+            if distance < neighbor_dist:
+                center_mass += other.position
+                total += 1
+
+        if total > 0:
+            center_mass /= total
+            self.seek(center_mass)
+
+    def flock(self, agents):
+        self.separate(agents)
+        self.align(agents)
+        self.cohesion(agents)
+
 
 
 agents = [Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(AGENT_COUNT)]
@@ -152,11 +173,9 @@ while running:
             running = False
 
     for agent in agents:
-        #SEPARATION: izogibanje drugim agentom
-        agent.separate(agents)
+        #FLOCK: agent se premika v skladu z drugimi agenti
+        agent.flock(agents)
 
-        #ALIGNMENT: poravnava s hitrostjo drugih agentov
-        agent.align(agents)
         #WANDER: naključno naravno gibanje
         agent.wander()
 
