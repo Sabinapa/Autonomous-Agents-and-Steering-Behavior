@@ -4,7 +4,7 @@ import math
 
 # Nastavitve
 WIDTH, HEIGHT = 800, 600
-AGENT_COUNT = 10
+AGENT_COUNT = 50
 
 # Inicializacija
 pygame.init()
@@ -94,6 +94,29 @@ class Agent:
                 steer.scale_to_length(self.max_force)
             self.apply_force(steer)
 
+    def separate(self, agents, desired_separation=25):
+        steer = pygame.math.Vector2(0, 0)
+        total = 0
+
+        for other in agents:
+            if other == self:
+                continue
+            distance = self.position.distance_to(other.position)
+            if 0 < distance < desired_separation:
+                diff = self.position - other.position
+                diff = diff.normalize() / distance  # bolj oddaljeni imajo manj vpliva
+                steer += diff
+                total += 1
+
+        if total > 0:
+            steer /= total
+            if steer.length() > 0:
+                steer = steer.normalize() * self.max_speed
+                steer -= self.velocity
+                if steer.length() > self.max_force:
+                    steer.scale_to_length(self.max_force)
+                self.apply_force(steer)
+
 
 agents = [Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(AGENT_COUNT)]
 
@@ -105,17 +128,17 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-    mouse_pos = pygame.mouse.get_pos()
-    mouse_vector = pygame.math.Vector2(mouse_pos)
-
     for agent in agents:
-        agent.wander()
-        agent.update()
-        agent.draw(screen)
+        #SEPARATION: izogibanje drugim agentom
+        agent.separate(agents)
 
-    for agent in agents:
+        #WANDER: naključno naravno gibanje
         agent.wander()
+
+        #STAY IN BOUNDS: ostani v oknu
         agent.stay_in_bounds(WIDTH, HEIGHT)
+
+        #Posodobi pozicijo in nariši
         agent.update()
         agent.draw(screen)
 
