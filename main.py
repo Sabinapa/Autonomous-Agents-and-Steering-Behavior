@@ -199,8 +199,17 @@ class Agent:
                 self.apply_force(steer)
 
 
+# Toggle switches for individual behaviors
+USE_SEEK = False         # Q
+USE_WANDER = True        # W
+USE_BOUNDS = True        # E
+USE_SEPARATION = False   # R
+USE_ALIGNMENT = False    # T
+USE_COHESION = False     # Y
+USE_FLOCK = True         # U
+USE_AVOID = True         # Dodano zraven, ni del osnovne 7
 
-
+# Create agents and obstacles
 agents = [Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(AGENT_COUNT)]
 
 obstacles = [
@@ -208,36 +217,92 @@ obstacles = [
     Obstacle(500, 200, 40)
 ]
 
+# Font for text
+pygame.font.init()
+font = pygame.font.SysFont("Consolas", 18)
+
+# Main loop
 running = True
 while running:
     screen.fill((0, 0, 0))
 
+    # Handle events
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_q:
+                USE_SEEK = not USE_SEEK
+            elif event.key == pygame.K_w:
+                USE_WANDER = not USE_WANDER
+            elif event.key == pygame.K_e:
+                USE_BOUNDS = not USE_BOUNDS
+            elif event.key == pygame.K_r:
+                USE_SEPARATION = not USE_SEPARATION
+            elif event.key == pygame.K_t:
+                USE_ALIGNMENT = not USE_ALIGNMENT
+            elif event.key == pygame.K_y:
+                USE_COHESION = not USE_COHESION
+            elif event.key == pygame.K_u:
+                USE_FLOCK = not USE_FLOCK
+            elif event.key == pygame.K_a:
+                USE_AVOID = not USE_AVOID  # optional extra
+            elif event.key == pygame.K_SPACE:
+                agents = [Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(AGENT_COUNT)]
 
+    # Mouse target for seek
+    mouse_vector = pygame.math.Vector2(pygame.mouse.get_pos())
+
+    # Update agents
     for agent in agents:
-        #Nariši ovire
-        agent.avoid_obstacles(obstacles)
+        if USE_SEEK:
+            agent.seek(mouse_vector)
 
-        #FLOCK: agent se premika v skladu z drugimi agenti
-        agent.flock(agents)
+        if USE_FLOCK:
+            agent.flock(agents)
+        else:
+            if USE_SEPARATION:
+                agent.separate(agents)
+            if USE_ALIGNMENT:
+                agent.align(agents)
+            if USE_COHESION:
+                agent.cohesion(agents)
 
-        #WANDER: naključno naravno gibanje
-        agent.wander()
+        if USE_WANDER:
+            agent.wander()
+        if USE_AVOID:
+            agent.avoid_obstacles(obstacles)
+        if USE_BOUNDS:
+            agent.stay_in_bounds(WIDTH, HEIGHT)
 
-        #STAY IN BOUNDS: ostani v oknu
-        agent.stay_in_bounds(WIDTH, HEIGHT)
-
-        #Posodobi pozicijo in nariši
         agent.update()
         agent.draw(screen)
 
+    # Draw obstacles
     for obstacle in obstacles:
         obstacle.draw(screen)
+
+    # Draw toggle status text
+    status_lines = [
+        f"[Q] Seek:       {'ON' if USE_SEEK else 'OFF'}",
+        f"[W] Wander:     {'ON' if USE_WANDER else 'OFF'}",
+        f"[E] Bounds:     {'ON' if USE_BOUNDS else 'OFF'}",
+        f"[R] Separation: {'ON' if USE_SEPARATION else 'OFF'}",
+        f"[T] Alignment:  {'ON' if USE_ALIGNMENT else 'OFF'}",
+        f"[Y] Cohesion:   {'ON' if USE_COHESION else 'OFF'}",
+        f"[U] Flock ALL:  {'ON' if USE_FLOCK else 'OFF'}",
+        f"[A] Avoid Obs:  {'ON' if USE_AVOID else 'OFF'}",
+        f"[SPACE] Refresh agents",
+    ]
+
+    for i, line in enumerate(status_lines):
+        text_surface = font.render(line, True, (200, 200, 200))
+        screen.blit(text_surface, (10, 10 + i * 20))
 
     pygame.display.flip()
     clock.tick(30)
 
 pygame.quit()
+
+
 
