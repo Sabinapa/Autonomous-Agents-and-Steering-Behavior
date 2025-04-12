@@ -19,6 +19,7 @@ class Agent:
         self.acceleration = pygame.math.Vector2(0, 0)
         self.max_speed = 2
         self.max_force = 0.05
+        self.wander_angle = 0
 
     def update(self):
         self.velocity += self.acceleration
@@ -47,6 +48,26 @@ class Agent:
 
         self.apply_force(steer)
 
+    def wander(self):
+        # Nastavitve
+        wander_radius = 50
+        wander_distance = 80
+        change = 0.3  # večja vrednost = večje spremembe smeri
+
+        self.wander_angle += random.uniform(-change, change)
+
+        # Izračun kroga pred agentom
+        circle_center = self.velocity.normalize() * wander_distance
+        displacement = pygame.math.Vector2(wander_radius * math.cos(self.wander_angle),
+                                           wander_radius * math.sin(self.wander_angle))
+
+        wander_force = circle_center + displacement
+
+        if wander_force.length() > self.max_force:
+            wander_force.scale_to_length(self.max_force)
+
+        self.apply_force(wander_force)
+
 
 agents = [Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(AGENT_COUNT)]
 
@@ -62,7 +83,7 @@ while running:
     mouse_vector = pygame.math.Vector2(mouse_pos)
 
     for agent in agents:
-        agent.seek(mouse_vector)  # SEEK vedenje
+        agent.wander()
         agent.update()
         agent.draw(screen)
 
