@@ -3,7 +3,7 @@ import random
 import math
 
 # Nastavitve
-WIDTH, HEIGHT = 800, 600
+WIDTH, HEIGHT = 1000, 800
 AGENT_COUNT = 50
 
 # Inicializacija
@@ -249,6 +249,15 @@ while running:
                 USE_AVOID = not USE_AVOID  # optional extra
             elif event.key == pygame.K_SPACE:
                 agents = [Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(AGENT_COUNT)]
+            elif event.key == pygame.K_ESCAPE:
+                USE_SEEK = False
+                USE_WANDER = False
+                USE_BOUNDS = False
+                USE_SEPARATION = False
+                USE_ALIGNMENT = False
+                USE_COHESION = False
+                USE_FLOCK = False
+                USE_AVOID = False
 
     # Mouse target for seek
     mouse_vector = pygame.math.Vector2(pygame.mouse.get_pos())
@@ -293,6 +302,7 @@ while running:
         f"[U] Flock ALL:  {'ON' if USE_FLOCK else 'OFF'}",
         f"[A] Avoid Obs:  {'ON' if USE_AVOID else 'OFF'}",
         f"[SPACE] Refresh agents",
+        f"[ESC]  Turn ALL behaviors OFF"
     ]
 
     for i, line in enumerate(status_lines):
