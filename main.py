@@ -33,6 +33,21 @@ class Agent:
     def draw(self, screen):
         pygame.draw.circle(screen, (255, 255, 255), (int(self.position.x), int(self.position.y)), 5)
 
+    def seek(self, target):
+        desired = target - self.position
+        distance = desired.length()
+        if distance == 0:
+            return
+
+        desired = desired.normalize() * self.max_speed
+        steer = desired - self.velocity
+
+        if steer.length() > self.max_force:
+            steer.scale_to_length(self.max_force)
+
+        self.apply_force(steer)
+
+
 agents = [Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(AGENT_COUNT)]
 
 running = True
@@ -43,7 +58,11 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
+    mouse_pos = pygame.mouse.get_pos()
+    mouse_vector = pygame.math.Vector2(mouse_pos)
+
     for agent in agents:
+        agent.seek(mouse_vector)  # SEEK vedenje
         agent.update()
         agent.draw(screen)
 
@@ -51,3 +70,4 @@ while running:
     clock.tick(60)
 
 pygame.quit()
+
