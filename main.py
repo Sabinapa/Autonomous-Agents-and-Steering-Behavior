@@ -17,7 +17,18 @@ class Obstacle:
         self.radius = radius
 
     def draw(self, screen):
-        pygame.draw.circle(screen, (200, 50, 50), (int(self.position.x), int(self.position.y)), self.radius)
+        gradient_surface = pygame.Surface((self.radius * 2, self.radius * 2), pygame.SRCALPHA)
+        center = self.radius
+
+        for i in range(self.radius, 0, -1):
+            r = 75 + int((128 - 75) * (i / self.radius))
+            g = 0
+            b = 130 + int((255 - 130) * (i / self.radius))
+            alpha = int(255 * (i / self.radius) * 0.6)
+
+            pygame.draw.circle(gradient_surface, (r, g, b, alpha), (center, center), i)
+
+        screen.blit(gradient_surface, (int(self.position.x - self.radius), int(self.position.y - self.radius)))
 
 
 # Agent
@@ -29,7 +40,8 @@ class Agent:
         self.max_speed = 1
         self.max_force = 0.03
         self.wander_angle = 0
-        self.image_orig = pygame.image.load("Blobfish Spritesheet.png").convert_alpha()
+        self.image_orig = pygame.image.load("fish2Texture.png").convert_alpha()
+        self.image_orig = pygame.transform.scale(self.image_orig, (52, 31))
         self.image = self.image_orig.copy()
         self.rect = self.image.get_rect(center=self.position)
 
@@ -214,17 +226,26 @@ agents = [Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in ra
 
 obstacles = [
     Obstacle(300, 300, 30),
-    Obstacle(500, 200, 40)
+    Obstacle(500, 200, 40),
+    Obstacle(150, 150, 25),
+    Obstacle(650, 100, 35),
+    Obstacle(400, 500, 50),
+    Obstacle(200, 400, 30),
+    Obstacle(600, 350, 45)
 ]
 
 # Font for text
 pygame.font.init()
 font = pygame.font.SysFont("Consolas", 18)
 
+background = pygame.image.load("The Lost Treasure - BeautyShot11.png").convert()
+background = pygame.transform.scale(background, (WIDTH, HEIGHT))
+
 # Main loop
 running = True
 while running:
-    screen.fill((0, 0, 0))
+    screen.blit(background, (0, 0))
+    #screen.fill((0, 0, 0))
 
     # Handle events
     for event in pygame.event.get():
@@ -246,7 +267,7 @@ while running:
             elif event.key == pygame.K_u:
                 USE_FLOCK = not USE_FLOCK
             elif event.key == pygame.K_a:
-                USE_AVOID = not USE_AVOID  # optional extra
+                USE_AVOID = not USE_AVOID
             elif event.key == pygame.K_SPACE:
                 agents = [Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(AGENT_COUNT)]
             elif event.key == pygame.K_ESCAPE:
