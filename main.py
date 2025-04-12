@@ -117,6 +117,29 @@ class Agent:
                     steer.scale_to_length(self.max_force)
                 self.apply_force(steer)
 
+    def align(self, agents, neighbor_dist=50):
+        sum_velocity = pygame.math.Vector2(0, 0)
+        total = 0
+
+        for other in agents:
+            if other == self:
+                continue
+            distance = self.position.distance_to(other.position)
+            if distance < neighbor_dist:
+                sum_velocity += other.velocity
+                total += 1
+
+        if total > 0:
+            average = sum_velocity / total
+            average = average.normalize() * self.max_speed
+            steer = average - self.velocity
+
+            if steer.length() > self.max_force:
+                steer.scale_to_length(self.max_force)
+
+            self.apply_force(steer)
+
+
 
 agents = [Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(AGENT_COUNT)]
 
@@ -132,6 +155,8 @@ while running:
         #SEPARATION: izogibanje drugim agentom
         agent.separate(agents)
 
+        #ALIGNMENT: poravnava s hitrostjo drugih agentov
+        agent.align(agents)
         #WANDER: naključno naravno gibanje
         agent.wander()
 
