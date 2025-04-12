@@ -68,6 +68,32 @@ class Agent:
 
         self.apply_force(wander_force)
 
+    def stay_in_bounds(self, width, height, margin=50):
+        desired = None
+
+        if self.position.x < margin:
+            desired = pygame.math.Vector2(self.max_speed, self.velocity.y)
+        elif self.position.x > width - margin:
+            desired = pygame.math.Vector2(-self.max_speed, self.velocity.y)
+
+        if self.position.y < margin:
+            if desired:
+                desired.y = self.max_speed
+            else:
+                desired = pygame.math.Vector2(self.velocity.x, self.max_speed)
+        elif self.position.y > height - margin:
+            if desired:
+                desired.y = -self.max_speed
+            else:
+                desired = pygame.math.Vector2(self.velocity.x, -self.max_speed)
+
+        if desired:
+            desired = desired.normalize() * self.max_speed
+            steer = desired - self.velocity
+            if steer.length() > self.max_force:
+                steer.scale_to_length(self.max_force)
+            self.apply_force(steer)
+
 
 agents = [Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(AGENT_COUNT)]
 
@@ -84,6 +110,12 @@ while running:
 
     for agent in agents:
         agent.wander()
+        agent.update()
+        agent.draw(screen)
+
+    for agent in agents:
+        agent.wander()
+        agent.stay_in_bounds(WIDTH, HEIGHT)
         agent.update()
         agent.draw(screen)
 
