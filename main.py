@@ -1,16 +1,53 @@
-# This is a sample Python script.
+import pygame
+import random
+import math
 
-# Press Shift+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+# Nastavitve
+WIDTH, HEIGHT = 800, 600
+AGENT_COUNT = 10
 
+# Inicializacija
+pygame.init()
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+clock = pygame.time.Clock()
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Ctrl+F8 to toggle the breakpoint.
+# Agent
+class Agent:
+    def __init__(self, x, y):
+        self.position = pygame.math.Vector2(x, y)
+        self.velocity = pygame.math.Vector2(random.uniform(-2, 2), random.uniform(-2, 2))
+        self.acceleration = pygame.math.Vector2(0, 0)
+        self.max_speed = 2
+        self.max_force = 0.05
 
+    def update(self):
+        self.velocity += self.acceleration
+        if self.velocity.length() > self.max_speed:
+            self.velocity.scale_to_length(self.max_speed)
+        self.position += self.velocity
+        self.acceleration *= 0
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
+    def apply_force(self, force):
+        self.acceleration += force
 
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+    def draw(self, screen):
+        pygame.draw.circle(screen, (255, 255, 255), (int(self.position.x), int(self.position.y)), 5)
+
+agents = [Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(AGENT_COUNT)]
+
+running = True
+while running:
+    screen.fill((0, 0, 0))
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    for agent in agents:
+        agent.update()
+        agent.draw(screen)
+
+    pygame.display.flip()
+    clock.tick(60)
+
+pygame.quit()
