@@ -11,15 +11,27 @@ pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
 
+class Obstacle:
+    def __init__(self, x, y, radius):
+        self.position = pygame.math.Vector2(x, y)
+        self.radius = radius
+
+    def draw(self, screen):
+        pygame.draw.circle(screen, (200, 50, 50), (int(self.position.x), int(self.position.y)), self.radius)
+
+
 # Agent
 class Agent:
     def __init__(self, x, y):
         self.position = pygame.math.Vector2(x, y)
         self.velocity = pygame.math.Vector2(random.uniform(-2, 2), random.uniform(-2, 2))
         self.acceleration = pygame.math.Vector2(0, 0)
-        self.max_speed = 2
-        self.max_force = 0.05
+        self.max_speed = 1
+        self.max_force = 0.03
         self.wander_angle = 0
+        self.image_orig = pygame.image.load("Blobfish Spritesheet.png").convert_alpha()
+        self.image = self.image_orig.copy()
+        self.rect = self.image.get_rect(center=self.position)
 
     def update(self):
         self.velocity += self.acceleration
@@ -32,7 +44,10 @@ class Agent:
         self.acceleration += force
 
     def draw(self, screen):
-        pygame.draw.circle(screen, (255, 255, 255), (int(self.position.x), int(self.position.y)), 5)
+        angle = self.velocity.angle_to(pygame.math.Vector2(1, 0)) * -1  # obrni za Pygame
+        self.image = pygame.transform.rotate(self.image_orig, angle)
+        self.rect = self.image.get_rect(center=self.position)
+        screen.blit(self.image, self.rect.topleft)
 
     def seek(self, target):
         desired = target - self.position
@@ -160,9 +175,38 @@ class Agent:
         self.align(agents)
         self.cohesion(agents)
 
+    def avoid_obstacles(self, obstacles, avoid_radius=60):
+        steer = pygame.math.Vector2(0, 0)
+        total = 0
+
+        for obs in obstacles:
+            distance = self.position.distance_to(obs.position)
+            if distance < obs.radius + avoid_radius:
+                diff = self.position - obs.position
+                if diff.length() > 0:
+                    diff = diff.normalize() / distance
+                    steer += diff
+                    total += 1
+
+        if total > 0:
+            steer /= total
+            if steer.length() > 0:
+                steer = steer.normalize() * self.max_speed
+                steer -= self.velocity
+                if steer.length() > self.max_force:
+                    steer.scale_to_length(self.max_force)
+                steer *= 1.5  # 💥 okrepljena sila izogibanja
+                self.apply_force(steer)
+
+
 
 
 agents = [Agent(random.randint(0, WIDTH), random.randint(0, HEIGHT)) for _ in range(AGENT_COUNT)]
+
+obstacles = [
+    Obstacle(300, 300, 30),
+    Obstacle(500, 200, 40)
+]
 
 running = True
 while running:
@@ -173,6 +217,9 @@ while running:
             running = False
 
     for agent in agents:
+        #Nariši ovire
+        agent.avoid_obstacles(obstacles)
+
         #FLOCK: agent se premika v skladu z drugimi agenti
         agent.flock(agents)
 
@@ -186,8 +233,11 @@ while running:
         agent.update()
         agent.draw(screen)
 
+    for obstacle in obstacles:
+        obstacle.draw(screen)
+
     pygame.display.flip()
-    clock.tick(60)
+    clock.tick(30)
 
 pygame.quit()
 
