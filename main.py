@@ -3,7 +3,7 @@ import random
 import math
 
 WIDTH, HEIGHT = 1000, 800
-AGENT_COUNT = 15  # za vsako jato posebej
+AGENT_COUNT = 15
 
 SIMULATION_RECT = pygame.Rect(0, 0, 1000, 600)
 
@@ -53,7 +53,7 @@ class Obstacle:
         gradient_surface = pygame.Surface((self.radius * 2, self.radius * 2), pygame.SRCALPHA)
         center = self.radius
 
-        for i in range(self.radius, 0, -1):
+        for i in range(self.radius, 0, -1): #gradient
             r = 75 + int((128 - 75) * (i / self.radius))
             g = 0
             b = 130 + int((255 - 130) * (i / self.radius))
@@ -65,15 +65,16 @@ class Obstacle:
 
 class Agent:
     def __init__(self, x, y, color=(0, 0, 0)):
-        self.position = pygame.math.Vector2(x, y)
-        self.velocity = pygame.math.Vector2(random.uniform(-2, 2), random.uniform(-2, 2))
-        self.acceleration = pygame.math.Vector2(0, 0)
-        self.max_speed = 2
-        self.max_force = 0.25
-        self.wander_angle = 0
-        self.size = 15
-        self.color = color
+        self.position = pygame.math.Vector2(x, y) #trenutna pozicija
+        self.velocity = pygame.math.Vector2(random.uniform(-2, 2), random.uniform(-2, 2)) #hitrost
+        self.acceleration = pygame.math.Vector2(0, 0) #pospešek
+        self.max_speed = 2 # najvecja hitrost
+        self.max_force = 0.25 # najvecja sila, ki jo lahko agent uporabi
+        self.wander_angle = 0 # kot pri naključni hoji
+        self.size = 15 #velikost agenta
+        self.color = color #barva agenta
 
+    # Posodabljanje hitrosti (velocity) in pozicije (position) preverjamo če ima preveliko hitrost
     def update(self):
         self.velocity += self.acceleration
         if self.velocity.length() > self.max_speed:
@@ -81,9 +82,11 @@ class Agent:
         self.position += self.velocity
         self.acceleration *= 0
 
+    # Dodajanje sile (force) na agentov pospešek (acceleration)
     def apply_force(self, force):
         self.acceleration += force
 
+    # Trikotnik v smeri hitrosti (glava)
     def draw(self, screen):
         if not SIMULATION_RECT.collidepoint(self.position):
             return
@@ -94,43 +97,49 @@ class Agent:
         p3 = self.position + heading.rotate(-135) * self.size * 0.5
         pygame.draw.polygon(screen, self.color, [p1, p2, p3])
 
+    # 1. Isci in pristani (agenti proti kazalcu miške)
     def seek(self, target):
         desired = target - self.position
         distance = desired.length()
-        if distance == 0:
+        if distance == 0: # agent je pri cilju
             return
         slowing_radius = 100
-        if distance < slowing_radius:
+        if distance < slowing_radius: # če je agent blizu cilju, upočasni
             speed = self.max_speed * (distance / slowing_radius)
         else:
             speed = self.max_speed
         desired = desired.normalize() * speed
-        steer = desired - self.velocity
+        steer = desired - self.velocity #usmeritvena sila
         if steer.length() > self.max_force:
             steer.scale_to_length(self.max_force)
         self.apply_force(steer)
 
+    # 2. Nakljucna naravna hoja
     def wander(self):
         wander_radius = 50
         wander_distance = 80
-        change = 0.3
-        self.wander_angle += random.uniform(-change, change)
-        if self.velocity.length() == 0:
+        change = 0.3 # Kako mocno lahko spreminja smer
+        self.wander_angle += random.uniform(-change, change) #nakljucno kot
+        if self.velocity.length() == 0: #agent miruje ne usmerjamo naprej
             return
-        circle_center = self.velocity.normalize() * wander_distance
+        circle_center = self.velocity.normalize() * wander_distance # sredisce kroga
+        #izracunamo novo nakljucno tocko na krogu
         displacement = pygame.math.Vector2(wander_radius * math.cos(self.wander_angle),
                                            wander_radius * math.sin(self.wander_angle))
-        wander_force = circle_center + displacement
-        if wander_force.length() > self.max_force:
+        wander_force = circle_center + displacement # koncna sila ki usmerja gibanje
+        if wander_force.length() > self.max_force: # omeji silo ce premocna
             wander_force.scale_to_length(self.max_force)
         self.apply_force(wander_force)
 
+    # 3. Gibanje v omejenem prostoru (ko pribliza robu ga nezno potisne nazaj proti sredini) margin notranji varnosti rob
     def stay_in_bounds(self, margin=20):
+        # neviden okvir okoli simulacije
         left = SIMULATION_RECT.left + margin
         right = SIMULATION_RECT.right - margin
         top = SIMULATION_RECT.top + margin
         bottom = SIMULATION_RECT.bottom - margin
-        steer = pygame.math.Vector2(0, 0)
+        steer = pygame.math.Vector2(0, 0) # sila ki potiska nazaj
+        # Preverimo na katerem robu zapusca prostor in dodamo silo v tisto smer
         if self.position.x < left:
             steer += pygame.math.Vector2(self.max_speed, 0)
         elif self.position.x > right:
@@ -139,85 +148,91 @@ class Agent:
             steer += pygame.math.Vector2(0, self.max_speed)
         elif self.position.y > bottom:
             steer += pygame.math.Vector2(0, -self.max_speed)
-        if steer.length() > 0:
-            if steer.length() > self.max_force:
+        if steer.length() > 0: # ce morali popraviti silo
+            if steer.length() > self.max_force: # omejimo silo
                 steer.scale_to_length(self.max_force)
-            steer *= 2
+            steer *= 2 # povečamo silo
             self.apply_force(steer)
 
+    # 4. Ločitev (agent se odmakne od drugih agentov svoje jate) desired_separation -  minimalno varnostno razdaljo med agenti
     def separate(self, agents, desired_separation=35):
-        steer = pygame.math.Vector2(0, 0)
-        total = 0
-        for other in agents:
+        steer = pygame.math.Vector2(0, 0) # vektor za smer umika
+        total = 0 # stevec angeotv ki preblizu
+        for other in agents: # preverimo vse agente
             if other == self:
                 continue
             distance = self.position.distance_to(other.position)
+            # ce je drug agent preblizu izracunamo smer umika
             if 0 < distance < desired_separation:
                 diff = self.position - other.position
                 diff = diff.normalize() / distance
                 steer += diff
                 total += 1
-        if total > 0:
+        if total > 0: # vec kot 1 agent preblizu
             steer /= total
             if steer.length() > 0:
-                steer = steer.normalize() * self.max_speed
+                steer = steer.normalize() * self.max_speed #prilagodimo hitrost
                 steer -= self.velocity
                 if steer.length() > self.max_force:
                     steer.scale_to_length(self.max_force)
                 self.apply_force(steer)
 
+    # 5. Poravnava (agent se poravna s hitrostjo drugih agentov) neighbor_dist - radij kjer upotevamo druge agente kot svoje sosede
     def align(self, agents, neighbor_dist=70):
-        sum_velocity = pygame.math.Vector2(0, 0)
-        total = 0
+        sum_velocity = pygame.math.Vector2(0, 0) # sum hitrosti sosedov
+        total = 0 # koliko sosedov imamo
         for other in agents:
             if other == self:
                 continue
-            distance = self.position.distance_to(other.position)
+            distance = self.position.distance_to(other.position) # razdalja do drugega agenta
             if distance < neighbor_dist:
-                sum_velocity += other.velocity
+                sum_velocity += other.velocity # dodamo hitrost drugega agenta
                 total += 1
         if total > 0:
-            average = sum_velocity / total
-            average = average.normalize() * self.max_speed
-            steer = average - self.velocity
+            average = sum_velocity / total # povprecna hitrost
+            average = average.normalize() * self.max_speed # prilagodimo hitrost
+            steer = average - self.velocity # izracunamo krmilno silo
             if steer.length() > self.max_force:
-                steer.scale_to_length(self.max_force)
+                steer.scale_to_length(self.max_force) # omejimo silo
             self.apply_force(steer)
 
+    # 6. Kohezija (agent se premika proti sredini svoje jate) neighbor_dist - radij kjer upotevamo druge agente kot svoje sosede
     def cohesion(self, agents, neighbor_dist=80):
-        center_mass = pygame.math.Vector2(0, 0)
-        total = 0
+        center_mass = pygame.math.Vector2(0, 0) # sredisce mase
+        total = 0 # koliko sosedov imamo
         for other in agents:
             if other == self:
                 continue
             distance = self.position.distance_to(other.position)
-            if distance < neighbor_dist:
-                center_mass += other.position
+            if distance < neighbor_dist: # ce je drug agent v radiju v blizini
+                center_mass += other.position # dodamo pozicijo drugega agenta
                 total += 1
         if total > 0:
-            center_mass /= total
-            self.seek(center_mass)
+            center_mass /= total # povprecje mase
+            self.seek(center_mass) # priblizamo se srediscu mase
 
+    # 7. Jata (kombinacija ločitve, poravnave in kohezije)
     def flock(self, agents):
         self.separate(agents)
         self.align(agents)
         self.cohesion(agents)
 
+    # 8. Ovire (agent se izogiba oviram) avoid_radius - radij kjer upostevamo ovire
     def avoid_obstacles(self, obstacles, avoid_radius=60):
-        steer = pygame.math.Vector2(0, 0)
-        total = 0
+        steer = pygame.math.Vector2(0, 0) # sila izogibanja
+        total = 0 # koliko ovir imamo
         for obs in obstacles:
-            distance = self.position.distance_to(obs.position)
-            if distance < obs.radius + avoid_radius:
-                diff = self.position - obs.position
+            distance = self.position.distance_to(obs.position) # razdalja do ovire
+            if distance < obs.radius + avoid_radius: # ce je ovira v radiju (agent preblizu ovire)
+                diff = self.position - obs.position # izracunamo vektor od ovire do agenta
                 if diff.length() > 0:
-                    diff = diff.normalize() / distance
+                    diff = diff.normalize() / distance # Manjša kot je razdalja, večja je sila
                     steer += diff
                     total += 1
         if total > 0:
-            steer /= total
+            steer /= total # povprecje sile
             if steer.length() > 0:
-                steer = steer.normalize() * self.max_speed
+                steer = steer.normalize() * self.max_speed # prilagodimo hitrost
                 steer -= self.velocity
                 if steer.length() > self.max_force:
                     steer.scale_to_length(self.max_force)
@@ -253,13 +268,10 @@ buttons = [
     Button(240, 650, 200, 35, "Nakljucna hoja", USE_WANDER),
     Button(460, 650, 200, 35, "Omejeni prostor", USE_BOUNDS),
     Button(680, 650, 200, 35, "Ovire", USE_AVOID),
-
     Button(20, 700, 200, 35, "Ločitev", USE_SEPARATION),
     Button(240, 700, 200, 35, "Poravnava", USE_ALIGNMENT),
     Button(460, 700, 200, 35, "Kohezija", USE_COHESION),
-
     Button(680, 700, 200, 35, "Jata", USE_FLOCK),
-
     Button(20, 750, 150, 35, "RESET", RESET_SIMULATION),
 ]
 
@@ -276,6 +288,7 @@ while running:
             for button in buttons:
                 button.handle_click(event.pos)
 
+    # Resetiranje simulacije in gumbov
     if RESET_SIMULATION[0]:
         flock1 = create_flock1()
         flock2 = create_flock2()
@@ -287,16 +300,16 @@ while running:
 
     for flock in [flock1, flock2]:
         for agent in flock:
-            if USE_SEEK[0]: agent.seek(mouse_vector)
-            if USE_FLOCK[0]: agent.flock(flock)
+            if USE_SEEK[0]: agent.seek(mouse_vector) # 1. Isci in pristani
+            if USE_FLOCK[0]: agent.flock(flock) # 7. Jata
             else:
-                if USE_SEPARATION[0]: agent.separate(flock)
-                if USE_ALIGNMENT[0]: agent.align(flock)
-                if USE_COHESION[0]: agent.cohesion(flock)
-            if USE_WANDER[0]: agent.wander()
-            if USE_AVOID[0]: agent.avoid_obstacles(obstacles)
+                if USE_SEPARATION[0]: agent.separate(flock) # 4. Ločitev
+                if USE_ALIGNMENT[0]: agent.align(flock) # 5. Poravnava
+                if USE_COHESION[0]: agent.cohesion(flock) # 6. Kohezija
+            if USE_WANDER[0]: agent.wander() # 2. Nakljucna hoja
+            if USE_AVOID[0]: agent.avoid_obstacles(obstacles) # 8. Ovire
 
-            if USE_BOUNDS[0]: agent.stay_in_bounds()
+            if USE_BOUNDS[0]: agent.stay_in_bounds() # 3. Omejen prostor
             agent.update()
             agent.draw(screen)
 
@@ -308,6 +321,6 @@ while running:
         button.draw(screen, font)
 
     pygame.display.flip()
-    clock.tick(60)
+    clock.tick(120)
 
 pygame.quit()
