@@ -3,7 +3,7 @@ import random
 import math
 
 WIDTH, HEIGHT = 1000, 800
-AGENT_COUNT = 30
+AGENT_COUNT = 15  # za vsako jato posebej
 
 SIMULATION_RECT = pygame.Rect(0, 0, 1000, 600)
 
@@ -11,7 +11,6 @@ pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 clock = pygame.time.Clock()
 
-# Font for button labels
 pygame.font.init()
 font = pygame.font.SysFont("Consolas", 18)
 
@@ -65,14 +64,15 @@ class Obstacle:
         screen.blit(gradient_surface, (int(self.position.x - self.radius), int(self.position.y - self.radius)))
 
 class Agent:
-    def __init__(self, x, y):
+    def __init__(self, x, y, color=(0, 0, 0)):
         self.position = pygame.math.Vector2(x, y)
         self.velocity = pygame.math.Vector2(random.uniform(-2, 2), random.uniform(-2, 2))
         self.acceleration = pygame.math.Vector2(0, 0)
         self.max_speed = 2
-        self.max_force = 0.1
+        self.max_force = 0.25
         self.wander_angle = 0
         self.size = 15
+        self.color = color
 
     def update(self):
         self.velocity += self.acceleration
@@ -87,44 +87,32 @@ class Agent:
     def draw(self, screen):
         if not SIMULATION_RECT.collidepoint(self.position):
             return
-
-        # Uporabimo pravi kot z obrnjeno y-osjo (Pygame coordinate fix)
         angle = math.atan2(self.velocity.y, self.velocity.x)
-
-        # Usmerjen trikotnik: točka naprej, in dve točki zadaj (levi in desni rob repa)
         heading = pygame.math.Vector2(math.cos(angle), math.sin(angle))
+        p1 = self.position + heading * self.size
+        p2 = self.position + heading.rotate(135) * self.size * 0.5
+        p3 = self.position + heading.rotate(-135) * self.size * 0.5
+        pygame.draw.polygon(screen, self.color, [p1, p2, p3])
 
-        p1 = self.position + heading * self.size  # konica (naprej)
-        p2 = self.position + heading.rotate(135) * self.size * 0.5  # levi rep
-        p3 = self.position + heading.rotate(-135) * self.size * 0.5  # desni rep
-
-        pygame.draw.polygon(screen, (0, 0, 0), [p1, p2, p3])
-
-    # 1. Isci in pristani
     def seek(self, target):
         desired = target - self.position
         distance = desired.length()
         if distance == 0:
             return
-
-        slowing_radius = 100  # Dodamo deceleration radius
-        if distance < slowing_radius:  # Prilagaj hitrost glede na razdaljo
+        slowing_radius = 100
+        if distance < slowing_radius:
             speed = self.max_speed * (distance / slowing_radius)
         else:
             speed = self.max_speed
-
         desired = desired.normalize() * speed
         steer = desired - self.velocity
-
         if steer.length() > self.max_force:
             steer.scale_to_length(self.max_force)
-
         self.apply_force(steer)
 
-    # 2. Nakljucna »naravna« hoja
     def wander(self):
-        wander_radius = 50 #znotraj tega agent niha
-        wander_distance = 80 #kako daleč od agentovega trenutnega položaja
+        wander_radius = 50
+        wander_distance = 80
         change = 0.3
         self.wander_angle += random.uniform(-change, change)
         if self.velocity.length() == 0:
@@ -137,30 +125,26 @@ class Agent:
             wander_force.scale_to_length(self.max_force)
         self.apply_force(wander_force)
 
-    def stay_in_bounds(self, margin=50):
+    def stay_in_bounds(self, margin=20):
         left = SIMULATION_RECT.left + margin
         right = SIMULATION_RECT.right - margin
         top = SIMULATION_RECT.top + margin
         bottom = SIMULATION_RECT.bottom - margin
-
         steer = pygame.math.Vector2(0, 0)
-
         if self.position.x < left:
             steer += pygame.math.Vector2(self.max_speed, 0)
         elif self.position.x > right:
             steer += pygame.math.Vector2(-self.max_speed, 0)
-
         if self.position.y < top:
             steer += pygame.math.Vector2(0, self.max_speed)
         elif self.position.y > bottom:
             steer += pygame.math.Vector2(0, -self.max_speed)
-
         if steer.length() > 0:
             if steer.length() > self.max_force:
                 steer.scale_to_length(self.max_force)
+            steer *= 2
             self.apply_force(steer)
 
-    # 4. Locitev
     def separate(self, agents, desired_separation=35):
         steer = pygame.math.Vector2(0, 0)
         total = 0
@@ -182,7 +166,6 @@ class Agent:
                     steer.scale_to_length(self.max_force)
                 self.apply_force(steer)
 
-    # 5. Poravnava
     def align(self, agents, neighbor_dist=70):
         sum_velocity = pygame.math.Vector2(0, 0)
         total = 0
@@ -201,7 +184,6 @@ class Agent:
                 steer.scale_to_length(self.max_force)
             self.apply_force(steer)
 
-    # 6. Kohezija
     def cohesion(self, agents, neighbor_dist=80):
         center_mass = pygame.math.Vector2(0, 0)
         total = 0
@@ -216,13 +198,11 @@ class Agent:
             center_mass /= total
             self.seek(center_mass)
 
-    # 7. Jata
     def flock(self, agents):
         self.separate(agents)
         self.align(agents)
         self.cohesion(agents)
 
-    # 8. Izogibaj se oviram
     def avoid_obstacles(self, obstacles, avoid_radius=60):
         steer = pygame.math.Vector2(0, 0)
         total = 0
@@ -244,9 +224,11 @@ class Agent:
                 steer *= 1.5
                 self.apply_force(steer)
 
-def create_agents():
-    return [Agent(random.randint(SIMULATION_RECT.left, SIMULATION_RECT.right),
-                  random.randint(SIMULATION_RECT.top, SIMULATION_RECT.bottom)) for _ in range(AGENT_COUNT)]
+def create_flock1():
+    return [Agent(random.randint(100, 400), random.randint(100, 500), color=(0, 0, 255)) for _ in range(AGENT_COUNT)]
+
+def create_flock2():
+    return [Agent(random.randint(600, 900), random.randint(100, 500), color=(255, 0, 0)) for _ in range(AGENT_COUNT)]
 
 def create_obstacles():
     return [
@@ -262,7 +244,8 @@ def create_obstacles():
         Obstacle(850, 400, 30)
     ]
 
-agents = create_agents()
+flock1 = create_flock1()
+flock2 = create_flock2()
 obstacles = create_obstacles()
 
 buttons = [
@@ -283,8 +266,8 @@ buttons = [
 running = True
 while running:
     screen.fill((200, 220, 255))
-    pygame.draw.rect(screen,(255, 255, 255), SIMULATION_RECT)  # okno za simulacijo
-    pygame.draw.rect(screen, (255, 255, 255), (0, 610, WIDTH, 270))  # spodnji panel
+    pygame.draw.rect(screen,(255, 255, 255), SIMULATION_RECT)
+    pygame.draw.rect(screen, (255, 255, 255), (0, 610, WIDTH, 270))
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -294,25 +277,28 @@ while running:
                 button.handle_click(event.pos)
 
     if RESET_SIMULATION[0]:
-        agents = create_agents()
+        flock1 = create_flock1()
+        flock2 = create_flock2()
         for toggle in [USE_SEEK, USE_WANDER, USE_BOUNDS, USE_SEPARATION, USE_ALIGNMENT, USE_COHESION, USE_FLOCK, USE_AVOID]:
             toggle[0] = False
         RESET_SIMULATION[0] = False
 
     mouse_vector = pygame.math.Vector2(pygame.mouse.get_pos())
 
-    for agent in agents:
-        if USE_SEEK[0]: agent.seek(mouse_vector) # Išči in pristani
-        if USE_FLOCK[0]: agent.flock(agents) # Jata
-        else:
-            if USE_SEPARATION[0]: agent.separate(agents)
-            if USE_ALIGNMENT[0]: agent.align(agents)
-            if USE_COHESION[0]: agent.cohesion(agents)
-        if USE_WANDER[0]: agent.wander() # Nakljucna hoja
-        if USE_AVOID[0]: agent.avoid_obstacles(obstacles) # Izogibaj se ovir
-        if USE_BOUNDS[0]: agent.stay_in_bounds()  # Ostani v meji
-        agent.update()
-        agent.draw(screen)
+    for flock in [flock1, flock2]:
+        for agent in flock:
+            if USE_SEEK[0]: agent.seek(mouse_vector)
+            if USE_FLOCK[0]: agent.flock(flock)
+            else:
+                if USE_SEPARATION[0]: agent.separate(flock)
+                if USE_ALIGNMENT[0]: agent.align(flock)
+                if USE_COHESION[0]: agent.cohesion(flock)
+            if USE_WANDER[0]: agent.wander()
+            if USE_AVOID[0]: agent.avoid_obstacles(obstacles)
+
+            if USE_BOUNDS[0]: agent.stay_in_bounds()
+            agent.update()
+            agent.draw(screen)
 
     for obstacle in obstacles:
         if SIMULATION_RECT.collidepoint(obstacle.position):
