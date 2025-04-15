@@ -3,9 +3,9 @@ import random
 import math
 
 WIDTH, HEIGHT = 1000, 1000
-AGENT_COUNT = 50
+AGENT_COUNT = 30
 
-SIMULATION_RECT = pygame.Rect(0, 0, 1000, 700)
+SIMULATION_RECT = pygame.Rect(50, 50, 900, 600)
 
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -95,19 +95,31 @@ class Agent:
         self.rect = self.image.get_rect(center=self.position)
         screen.blit(self.image, self.rect.topleft)
 
+    # 1. Isci in pristani
     def seek(self, target):
         desired = target - self.position
-        if desired.length() == 0:
+        distance = desired.length()
+        if distance == 0:
             return
-        desired = desired.normalize() * self.max_speed
+
+        slowing_radius = 100  # Dodamo deceleration radius
+        if distance < slowing_radius:  # Prilagaj hitrost glede na razdaljo
+            speed = self.max_speed * (distance / slowing_radius)
+        else:
+            speed = self.max_speed
+
+        desired = desired.normalize() * speed
         steer = desired - self.velocity
+
         if steer.length() > self.max_force:
             steer.scale_to_length(self.max_force)
+
         self.apply_force(steer)
 
+    # 2. Nakljucna »naravna« hoja
     def wander(self):
-        wander_radius = 50
-        wander_distance = 80
+        wander_radius = 50 #znotraj tega agent niha
+        wander_distance = 80 #kako daleč od agentovega trenutnega položaja
         change = 0.3
         self.wander_angle += random.uniform(-change, change)
         if self.velocity.length() == 0:
@@ -120,6 +132,7 @@ class Agent:
             wander_force.scale_to_length(self.max_force)
         self.apply_force(wander_force)
 
+    # 3. Omejeni prostor
     def stay_in_bounds(self, margin=50):
         left = SIMULATION_RECT.left + margin
         right = SIMULATION_RECT.right - margin
@@ -143,7 +156,8 @@ class Agent:
                 steer.scale_to_length(self.max_force)
             self.apply_force(steer)
 
-    def separate(self, agents, desired_separation=25):
+    # 4. Locitev
+    def separate(self, agents, desired_separation=35):
         steer = pygame.math.Vector2(0, 0)
         total = 0
         for other in agents:
@@ -164,7 +178,8 @@ class Agent:
                     steer.scale_to_length(self.max_force)
                 self.apply_force(steer)
 
-    def align(self, agents, neighbor_dist=50):
+    # 5. Poravnava
+    def align(self, agents, neighbor_dist=70):
         sum_velocity = pygame.math.Vector2(0, 0)
         total = 0
         for other in agents:
@@ -182,7 +197,8 @@ class Agent:
                 steer.scale_to_length(self.max_force)
             self.apply_force(steer)
 
-    def cohesion(self, agents, neighbor_dist=50):
+    # 6. Kohezija
+    def cohesion(self, agents, neighbor_dist=80):
         center_mass = pygame.math.Vector2(0, 0)
         total = 0
         for other in agents:
@@ -196,11 +212,13 @@ class Agent:
             center_mass /= total
             self.seek(center_mass)
 
+    # 7. Jata
     def flock(self, agents):
         self.separate(agents)
         self.align(agents)
         self.cohesion(agents)
 
+    # 8. Izogibaj se oviram
     def avoid_obstacles(self, obstacles, avoid_radius=60):
         steer = pygame.math.Vector2(0, 0)
         total = 0
@@ -245,21 +263,24 @@ obstacles = create_obstacles()
 
 buttons = [
     Button(20, 730, 200, 35, "Išči in pristani", USE_SEEK),
-    Button(140, 810, 110, 35, "Wander", USE_WANDER),
-    Button(260, 810, 110, 35, "Bounds", USE_BOUNDS),
-    Button(380, 810, 110, 35, "Separate", USE_SEPARATION),
-    Button(500, 810, 110, 35, "Align", USE_ALIGNMENT),
-    Button(620, 810, 110, 35, "Cohesion", USE_COHESION),
-    Button(740, 810, 110, 35, "Flock", USE_FLOCK),
-    Button(860, 810, 110, 35, "Avoid", USE_AVOID),
-    Button(20, 860, 150, 35, "RESET", RESET_SIMULATION),
+    Button(240, 730, 200, 35, "Nakljucna hoja", USE_WANDER),
+    Button(460, 730, 200, 35, "Omejeni prostor", USE_BOUNDS),
+    Button(680, 730, 200, 35, "Ovire", USE_AVOID),
+
+    Button(20, 780, 200, 35, "Ločitev", USE_SEPARATION),
+    Button(240, 780, 200, 35, "Poravnava", USE_ALIGNMENT),
+    Button(460, 780, 200, 35, "Kohezija", USE_COHESION),
+
+    Button(680, 780, 200, 35, "Jata", USE_FLOCK),
+
+    Button(20, 830, 150, 35, "RESET", RESET_SIMULATION),
 ]
 
 running = True
 while running:
     screen.fill((200, 220, 255))
     pygame.draw.rect(screen,(255, 255, 255), SIMULATION_RECT)  # okno za simulacijo
-    pygame.draw.rect(screen, (255, 255, 255), (0, 720, WIDTH, 220))  # spodnji panel
+    pygame.draw.rect(screen, (255, 255, 255), (0, 700, WIDTH, 270))  # spodnji panel
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -277,15 +298,15 @@ while running:
     mouse_vector = pygame.math.Vector2(pygame.mouse.get_pos())
 
     for agent in agents:
-        if USE_SEEK[0]: agent.seek(mouse_vector)
-        if USE_FLOCK[0]: agent.flock(agents)
+        if USE_BOUNDS[0]: agent.stay_in_bounds() # Ostani v meji
+        if USE_SEEK[0]: agent.seek(mouse_vector) # Išči in pristani
+        if USE_FLOCK[0]: agent.flock(agents) # Jata
         else:
             if USE_SEPARATION[0]: agent.separate(agents)
             if USE_ALIGNMENT[0]: agent.align(agents)
             if USE_COHESION[0]: agent.cohesion(agents)
-        if USE_WANDER[0]: agent.wander()
-        if USE_AVOID[0]: agent.avoid_obstacles(obstacles)
-        if USE_BOUNDS[0]: agent.stay_in_bounds()
+        if USE_WANDER[0]: agent.wander() # Nakljucna hoja
+        if USE_AVOID[0]: agent.avoid_obstacles(obstacles) # Izogibaj se ovir
         agent.update()
         agent.draw(screen)
 
