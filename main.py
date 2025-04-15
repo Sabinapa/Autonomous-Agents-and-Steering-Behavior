@@ -2,10 +2,10 @@ import pygame
 import random
 import math
 
-WIDTH, HEIGHT = 1000, 1000
+WIDTH, HEIGHT = 1000, 800
 AGENT_COUNT = 30
 
-SIMULATION_RECT = pygame.Rect(50, 50, 900, 600)
+SIMULATION_RECT = pygame.Rect(0, 0, 1000, 600)
 
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -69,13 +69,10 @@ class Agent:
         self.position = pygame.math.Vector2(x, y)
         self.velocity = pygame.math.Vector2(random.uniform(-2, 2), random.uniform(-2, 2))
         self.acceleration = pygame.math.Vector2(0, 0)
-        self.max_speed = 1
-        self.max_force = 0.03
+        self.max_speed = 2
+        self.max_force = 0.1
         self.wander_angle = 0
-        self.image_orig = pygame.image.load("fish2Texture.png").convert_alpha()
-        self.image_orig = pygame.transform.scale(self.image_orig, (52, 31))
-        self.image = self.image_orig.copy()
-        self.rect = self.image.get_rect(center=self.position)
+        self.size = 15
 
     def update(self):
         self.velocity += self.acceleration
@@ -90,10 +87,18 @@ class Agent:
     def draw(self, screen):
         if not SIMULATION_RECT.collidepoint(self.position):
             return
-        angle = self.velocity.angle_to(pygame.math.Vector2(1, 0)) * -1
-        self.image = pygame.transform.rotate(self.image_orig, angle)
-        self.rect = self.image.get_rect(center=self.position)
-        screen.blit(self.image, self.rect.topleft)
+
+        # Uporabimo pravi kot z obrnjeno y-osjo (Pygame coordinate fix)
+        angle = math.atan2(self.velocity.y, self.velocity.x)
+
+        # Usmerjen trikotnik: točka naprej, in dve točki zadaj (levi in desni rob repa)
+        heading = pygame.math.Vector2(math.cos(angle), math.sin(angle))
+
+        p1 = self.position + heading * self.size  # konica (naprej)
+        p2 = self.position + heading.rotate(135) * self.size * 0.5  # levi rep
+        p3 = self.position + heading.rotate(-135) * self.size * 0.5  # desni rep
+
+        pygame.draw.polygon(screen, (0, 0, 0), [p1, p2, p3])
 
     # 1. Isci in pristani
     def seek(self, target):
@@ -132,26 +137,25 @@ class Agent:
             wander_force.scale_to_length(self.max_force)
         self.apply_force(wander_force)
 
-    # 3. Omejeni prostor
     def stay_in_bounds(self, margin=50):
         left = SIMULATION_RECT.left + margin
         right = SIMULATION_RECT.right - margin
         top = SIMULATION_RECT.top + margin
         bottom = SIMULATION_RECT.bottom - margin
-        desired = None
+
+        steer = pygame.math.Vector2(0, 0)
 
         if self.position.x < left:
-            desired = pygame.math.Vector2(self.max_speed, self.velocity.y)
+            steer += pygame.math.Vector2(self.max_speed, 0)
         elif self.position.x > right:
-            desired = pygame.math.Vector2(-self.max_speed, self.velocity.y)
-        if self.position.y < top:
-            desired = desired or pygame.math.Vector2(self.velocity.x, self.max_speed)
-        elif self.position.y > bottom:
-            desired = desired or pygame.math.Vector2(self.velocity.x, -self.max_speed)
+            steer += pygame.math.Vector2(-self.max_speed, 0)
 
-        if desired:
-            desired = desired.normalize() * self.max_speed
-            steer = desired - self.velocity
+        if self.position.y < top:
+            steer += pygame.math.Vector2(0, self.max_speed)
+        elif self.position.y > bottom:
+            steer += pygame.math.Vector2(0, -self.max_speed)
+
+        if steer.length() > 0:
             if steer.length() > self.max_force:
                 steer.scale_to_length(self.max_force)
             self.apply_force(steer)
@@ -262,25 +266,25 @@ agents = create_agents()
 obstacles = create_obstacles()
 
 buttons = [
-    Button(20, 730, 200, 35, "Išči in pristani", USE_SEEK),
-    Button(240, 730, 200, 35, "Nakljucna hoja", USE_WANDER),
-    Button(460, 730, 200, 35, "Omejeni prostor", USE_BOUNDS),
-    Button(680, 730, 200, 35, "Ovire", USE_AVOID),
+    Button(20, 650, 200, 35, "Išči in pristani", USE_SEEK),
+    Button(240, 650, 200, 35, "Nakljucna hoja", USE_WANDER),
+    Button(460, 650, 200, 35, "Omejeni prostor", USE_BOUNDS),
+    Button(680, 650, 200, 35, "Ovire", USE_AVOID),
 
-    Button(20, 780, 200, 35, "Ločitev", USE_SEPARATION),
-    Button(240, 780, 200, 35, "Poravnava", USE_ALIGNMENT),
-    Button(460, 780, 200, 35, "Kohezija", USE_COHESION),
+    Button(20, 700, 200, 35, "Ločitev", USE_SEPARATION),
+    Button(240, 700, 200, 35, "Poravnava", USE_ALIGNMENT),
+    Button(460, 700, 200, 35, "Kohezija", USE_COHESION),
 
-    Button(680, 780, 200, 35, "Jata", USE_FLOCK),
+    Button(680, 700, 200, 35, "Jata", USE_FLOCK),
 
-    Button(20, 830, 150, 35, "RESET", RESET_SIMULATION),
+    Button(20, 750, 150, 35, "RESET", RESET_SIMULATION),
 ]
 
 running = True
 while running:
     screen.fill((200, 220, 255))
     pygame.draw.rect(screen,(255, 255, 255), SIMULATION_RECT)  # okno za simulacijo
-    pygame.draw.rect(screen, (255, 255, 255), (0, 700, WIDTH, 270))  # spodnji panel
+    pygame.draw.rect(screen, (255, 255, 255), (0, 610, WIDTH, 270))  # spodnji panel
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -298,7 +302,6 @@ while running:
     mouse_vector = pygame.math.Vector2(pygame.mouse.get_pos())
 
     for agent in agents:
-        if USE_BOUNDS[0]: agent.stay_in_bounds() # Ostani v meji
         if USE_SEEK[0]: agent.seek(mouse_vector) # Išči in pristani
         if USE_FLOCK[0]: agent.flock(agents) # Jata
         else:
@@ -307,6 +310,7 @@ while running:
             if USE_COHESION[0]: agent.cohesion(agents)
         if USE_WANDER[0]: agent.wander() # Nakljucna hoja
         if USE_AVOID[0]: agent.avoid_obstacles(obstacles) # Izogibaj se ovir
+        if USE_BOUNDS[0]: agent.stay_in_bounds()  # Ostani v meji
         agent.update()
         agent.draw(screen)
 
@@ -318,6 +322,6 @@ while running:
         button.draw(screen, font)
 
     pygame.display.flip()
-    clock.tick(30)
+    clock.tick(60)
 
 pygame.quit()
